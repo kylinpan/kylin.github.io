@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: general-test
+
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  ## deploy 生成的 pod 的名称也是 nginx-deploy-xxx
+  name: nginx-deploy
+  labels:
+    app: nginx-deploy
+  namespace: general-test
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      ## 这里的 label 是与下面的 template.metadata.label 匹配的,
+      ## 表示一种管理关系
+      app: nginx-pod
+  template:
+    metadata:
+      labels:
+        app: nginx-pod
+    spec:
+      containers:
+      - name: nginx
+        image: nginx
+        imagePullPolicy: IfNotPresent
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nginx-svc
+  labels:
+    app: nginx-svc
+  namespace: general-test
+spec:
+  ports:
+  - port: 80
+    name: http
+    targetPort: 80
+  selector:
+    ## 注意: service 的 selector 需要指定的是 
+    ## Deployment.spec.template.labels,
+    ## 而不是 Deployment.metadata.lables.
+    ## 可以说, Service与Deployment最终指向的目标都是Pod资源.
+    app: nginx-pod
+
+---
+apiVersion: extensions/v1beta1
+kind: Ingress
+metadata:
+  name: nginx-ing
+  labels:
+    app: nginx-ing
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+  namespace: general-test
+spec:
+  rules:
+  - host: foo.example.com
+    http:
+      paths:
+      - path: /svc
+        backend:
+          serviceName: nginx-svc
+          servicePort: 80
